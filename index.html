@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meditation Tracker - Enhanced</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+        .dashboard, .session-log, .notes-section {
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .dashboard h2, .session-log h2, .notes-section h2 {
+            margin-top: 0;
+        }
+        .dashboard {
+            background-color: #070707;
+            color: #f9f9f9;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        #progressBar {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+        [contenteditable="true"] {
+            border: 1px dashed #ccc;
+            padding: 4px;
+        }
+        .session-entry {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+        }
+        .session-entry label {
+            flex: 1;
+            margin-left: 10px;
+        }
+        .session-notes {
+            display: block;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            width: 100%;
+            outline: none;
+        }
+        .session-notes:empty:before {
+            content: "+";
+            display: block;
+            text-align: center;
+            color: #ccc;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            border-radius: 5px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover, .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard">
+            <h2>Mandal Dashboard</h2>
+            <p>Today's Date & Time: <span id="currentDateTime"></span></p>
+            <p>Your Name: <span id="userName" contenteditable="true"></span></p>
+            <p>Mandal Name: <span id="mandalaNameDashboard" contenteditable="true"></span></p>
+            <p>Duration: 48 days            </p>
+            <p>Start Date: <input type="date" id="startDateInput"></p>
+            <p>End Date: <span id="endDateDashboard"></span></p>
+            <p>Days Completed: <span id="daysCompleted"></span></p>
+            <p>Remaining Days: <span id="remainingDays"></span></p>
+            <p>Sessions Completed: <span id="sessionsCompletedDashboard"></span> / 96</p>
+            <p>Mandal Completed: <span id="mandalsCompleted" contenteditable="true"></span></p>
+            <div class="progress-bar">
+                <div id="progressBar"></div>
+            </div>
+            <button id="createSessionBtn">Create Session</button>
+            <button id="createPastSessionBtn">Add Past Session</button>
+            <button id="deleteMandalBtn">Delete Mandal</button>
+        </div>
+        <div class="session-log">
+            <h2>Your Meditation History</h2>
+            <p>Here, you can view your past meditation sessions. It's a record of your journey & commitment towards mindfulness.</p>
+            <button id="deleteSelectedSessionsBtn">Delete Selected Sessions</button>
+            <button id="sortSessionsByDateBtn">Sort by Date Ascending Order</button>
+            <div id="sessionLog"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="notes-section">
+            <h2>Meditation Notes</h2>
+            <div id="notesSection"></div>
+            <button class="export-notes-btn" id="exportNotesBtn">Export Notes</button>
+        </div>
+    </div>
+
+    <div id="countdownModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeCountdownModalBtn">&times;</span>
+            <h2>Session Timer</h2>
+            <p id="countdownTimer">13:00</p>
+            <button id="startTimerBtn">Start</button>
+            <button id="stopTimerBtn">Stop</button>
+        </div>
+    </div>
+
+    <div id="pastSessionModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closePastSessionModalBtn">&times;</span>
+            <h2>Add Past Sessions</h2>
+            <p>Select the date and times for the past sessions:</p>
+            <label for="pastSessionDate">Date:</label>
+            <input type="date" id="pastSessionDate">
+            <label for="morningSessionTime">Morning Session Time:</label>
+            <input type="time" id="morningSessionTime">
+            <label for="eveningSessionTime">Evening Session Time:</label>
+            <input type="time" id="eveningSessionTime">
+            <button id="savePastSessionsBtn">Save</button>
+        </div>
+    </div>
+
+    <script>
+        let activeMandal = JSON.parse(localStorage.getItem('activeMandal')) || {
+            name: '',
+            startDate: '',
+            endDate: '',
+            sessions: [],
+            completed: false
+        };
+
+        let timerInterval = null;
+        const defaultDuration = 13 * 60 * 1000; // 13 minutes in milliseconds
+
+        document.getElementById('userName').addEventListener('blur', debounce(saveUserName, 300));
+        document.getElementById('mandalaNameDashboard').addEventListener('blur', debounce(saveMandalaName, 300));
+        document.getElementById('startDateInput').addEventListener('change', debounce(setStartDate, 300));
+        document.getElementById('mandalsCompleted').addEventListener('blur', debounce(saveMandalsCompleted, 300));
+        document.getElementById('createSessionBtn').addEventListener('click', createSession);
+        document.getElementById('createPastSessionBtn').addEventListener('click', showPastSessionModal);
+        document.getElementById('deleteMandalBtn').addEventListener('click', deleteMandal);
+        document.getElementById('deleteSelectedSessionsBtn').addEventListener('click', deleteSelectedSessions);
+        document.getElementById('sortSessionsByDateBtn').addEventListener('click', sortSessionsByDate);
+        document.getElementById('exportNotesBtn').addEventListener('click', exportNotes);
+        document.getElementById('startTimerBtn').addEventListener('click', startTimer);
+        document.getElementById('stopTimerBtn').addEventListener('click', stopTimer);
+        document.getElementById('closeCountdownModalBtn').addEventListener('click', closeCountdownModal);
+        document.getElementById('savePastSessionsBtn').addEventListener('click', savePastSessions);
+        document.getElementById('closePastSessionModalBtn').addEventListener('click', closePastSessionModal);
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        function saveUserName() {
+            const userName = document.getElementById('userName').textContent.trim();
+            localStorage.setItem('userName', userName);
+            updateDashboard();
+        }
+
+        function saveMandalaName() {
+            const mandalaName = document.getElementById('mandalaNameDashboard').textContent.trim();
+            activeMandal.name = mandalaName;
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            updateDashboard();
+        }
+
+        function setStartDate() {
+            const startDate = document.getElementById('startDateInput').value;
+            activeMandal.startDate = startDate;
+            activeMandal.endDate = calculateEndDate(startDate, 48); // 48 days duration
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            updateDashboard();
+        }
+
+        function calculateEndDate(startDate, duration) {
+            const start = new Date(startDate);
+            start.setDate(start.getDate() + duration);
+            return start.toISOString().split('T')[0];
+        }
+
+        function saveMandalsCompleted() {
+            const mandalsCompleted = document.getElementById('mandalsCompleted').textContent.trim();
+            localStorage.setItem('mandalsCompleted', mandalsCompleted);
+            updateDashboard();
+        }
+
+        function createSession() {
+            if (!activeMandal.name) {
+                alert('Please create a Mandal first.');
+                return;
+            }
+            const session = {
+                startTime: null,
+                endTime: null,
+                completed: false,
+                notes: "",
+                date: new Date().toISOString()
+            };
+            activeMandal.sessions.push(session);
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            showCountdownModal();
+            updateDashboard();
+            displaySessionLog();
+        }
+
+        function createPastSession() {
+            showPastSessionModal();
+        }
+
+        function savePastSessions() {
+            const pastSessionDate = document.getElementById('pastSessionDate').value;
+            const morningSessionTime = document.getElementById('morningSessionTime').value;
+            const eveningSessionTime = document.getElementById('eveningSessionTime').value;
+
+            if (!pastSessionDate || !morningSessionTime || !eveningSessionTime) {
+                alert('Please select date and times for both sessions.');
+                return;
+            }
+
+            const morningSessionDateTime = new Date(`${pastSessionDate}T${morningSessionTime}`);
+            const eveningSessionDateTime = new Date(`${pastSessionDate}T${eveningSessionTime}`);
+
+            const morningSessionEndTime = new Date(morningSessionDateTime.getTime() + defaultDuration);
+            const eveningSessionEndTime = new Date(eveningSessionDateTime.getTime() + defaultDuration);
+
+            const morningSession = {
+                startTime: morningSessionDateTime.toLocaleTimeString(),
+                endTime: morningSessionEndTime.toLocaleTimeString(),
+                completed: true,
+                notes: "",
+                date: morningSessionDateTime.toISOString()
+            };
+
+            const eveningSession = {
+                startTime: eveningSessionDateTime.toLocaleTimeString(),
+                endTime: eveningSessionEndTime.toLocaleTimeString(),
+                completed: true,
+                notes: "",
+                date: eveningSessionDateTime.toISOString()
+            };
+
+            activeMandal.sessions.push(morningSession, eveningSession);
+            activeMandal.sessions.sort((a, b) => new Date(a.date) - new Date(b.date)); // Ensure sessions are sorted
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            closePastSessionModal();
+            updateDashboard();
+            displaySessionLog();
+        }
+
+        function formatDate(date) {
+            const options = { year: 'numeric', month: '2-digit', day: '2-digit' };
+            return new Date(date).toLocaleDateString('en-GB', options);
+        }
+
+        function showCountdownModal() {
+            document.getElementById("countdownModal").style.display = "block";
+        }
+
+        function closeCountdownModal() {
+            document.getElementById("countdownModal").style.display = "none";
+            stopTimer(); // Stop the timer when closing the modal
+        }
+
+        function showPastSessionModal() {
+            document.getElementById("pastSessionModal").style.display = "block";
+        }
+
+        function closePastSessionModal() {
+            document.getElementById("pastSessionModal").style.display = "none";
+        }
+
+        function startTimer() {
+            const currentSession = activeMandal.sessions[activeMandal.sessions.length - 1];
+            const timerDuration = 13 * 60; // 13 minutes in seconds
+            let timeLeft = timerDuration;
+
+            if (!currentSession.startTime) {
+                currentSession.startTime = new Date().toLocaleTimeString();
+                localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            }
+
+            timerInterval = setInterval(() => {
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    currentSession.endTime = new Date().toLocaleTimeString();
+                    currentSession.completed = true;
+                    localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+                    showToast("Session completed!");
+                    updateDashboard();
+                    displaySessionLog();
+                    closeCountdownModal();
+                } else {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    document.getElementById("countdownTimer").textContent = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateDashboard() {
+            const mandalaName = document.getElementById('mandalaNameDashboard').textContent.trim();
+            const userName = document.getElementById('userName').textContent.trim();
+            const startDate = new Date(activeMandal.startDate);
+            const endDate = new Date(activeMandal.endDate);
+            const daysCompleted = Math.floor((new Date() - startDate) / (1000 * 60 * 60 * 24));
+            const remainingDays = Math.max(0, 48 - daysCompleted);
+            const sessionsCompleted = activeMandal.sessions.filter(session => session.completed).length;
+
+            document.getElementById('currentDateTime').textContent = new Date().toLocaleString();
+            document.getElementById('mandalaNameDashboard').textContent = mandalaName;
+            document.getElementById('userName').textContent = userName;
+            document.getElementById('startDateInput').value = startDate.toISOString().split('T')[0];
+            document.getElementById('endDateDashboard').textContent = endDate.toDateString();
+            document.getElementById('daysCompleted').textContent = daysCompleted;
+            document.getElementById('remainingDays').textContent = remainingDays;
+            document.getElementById('sessionsCompletedDashboard').textContent = sessionsCompleted;
+            document.getElementById('progressBar').style.width = `${(sessionsCompleted / 96) * 100}%`;
+        }
+
+        function displaySessionLog() {
+            const sessionLog = document.getElementById('sessionLog');
+            sessionLog.innerHTML = '';
+           
+            activeMandal.sessions.forEach((session, index) => {
+                const sessionEntry = document.createElement('div');
+                sessionEntry.classList.add('session-entry');
+                sessionEntry.innerHTML = `
+                    <input type="checkbox" class="session-checkbox" data-index="${index}">
+                    <label>
+                        <h3>Session ${index + 1}</h3>
+                        <p>Date: ${formatDate(session.date)}</p>
+                        <p>Start Time: ${session.startTime || 'Not started'}</p>
+                        <p>End Time: ${session.endTime || 'Not ended'}</p>
+                        <p>Completed: ${session.completed ? 'Yes' : 'No'}</p>
+                        <div class="session-notes" contenteditable="true" data-index="${index}" onblur="debounce(saveSessionNotes(event), 300)">${session.notes || ''}</div>
+                    </label>
+                `;
+                sessionLog.appendChild(sessionEntry);
+            });
+        }
+
+        function saveSessionNotes(event) {
+            const index = event.target.dataset.index;
+            activeMandal.sessions[index].notes = event.target.textContent.trim();
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+        }
+
+        function deleteSelectedSessions() {
+            const checkboxes = document.querySelectorAll('.session-checkbox:checked');
+            const indexesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+            activeMandal.sessions = activeMandal.sessions.filter((_, index) => !indexesToDelete.includes(index));
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            updateDashboard();
+            displaySessionLog();
+        }
+
+        function sortSessionsByDate() {
+            activeMandal.sessions.sort((a, b) => new Date(a.date) - new Date(b.date));
+            localStorage.setItem('activeMandal', JSON.stringify(activeMandal));
+            displaySessionLog();
+        }
+
+        function exportNotes() {
+            const exportData = activeMandal.sessions.map((session, index) => `
+                <h3>Session ${index + 1}</h3>
+                <p>Date: ${formatDate(session.date)}</p>
+                <p>Start Time: ${session.startTime}</p>
+                <p>End Time: ${session.endTime}</p>
+                <p>Notes: ${session.notes}</p>
+            `).join('');
+            const exportBlob = new Blob([exportData], { type: 'text/html' });
+            const exportUrl = URL.createObjectURL(exportBlob);
+            const a = document.createElement('a');
+            a.href = exportUrl;
+            a.download = `${activeMandal.name}_notes.html`;
+            a.click();
+            URL.revokeObjectURL(exportUrl);
+        }
+
+        function deleteMandal() {
+            if (confirm("Are you sure you want to delete the current mandala?")) {
+                localStorage.removeItem('activeMandal');
+                activeMandal = {
+                    name: '',
+                    startDate: '',
+                    endDate: '',
+                    sessions: [],
+                    completed: false
+                };
+                updateDashboard();
+                displaySessionLog();
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const storedMandal = localStorage.getItem('activeMandal');
+            if (storedMandal) {
+                activeMandal = JSON.parse(storedMandal);
+                updateDashboard();
+                displaySessionLog();
+            }
+            document.getElementById('userName').textContent = localStorage.getItem('userName') || 'Your Name';
+            document.getElementById('mandalsCompleted').textContent = localStorage.getItem('mandalsCompleted') || '0';
+        });
+
+        function showToast(message) {
+            // Implement toast notification if needed
+            alert(message);
+        }
+    </script>
+</body>
+</html>
+
